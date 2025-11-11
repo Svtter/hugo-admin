@@ -36,7 +36,7 @@ A lightweight web-based admin interface for managing Hugo static sites. Provides
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/hugo-admin.git
+git clone https://github.com/Svtter/hugo-admin.git
 cd hugo-admin
 ```
 
@@ -211,7 +211,7 @@ Built with ❤️ for the Hugo community.
 
 1. 克隆仓库:
 ```bash
-git clone https://github.com/YOUR_USERNAME/hugo-admin.git
+git clone https://github.com/Svtter/hugo-admin.git
 cd hugo-admin
 ```
 
