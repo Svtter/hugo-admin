@@ -1,0 +1,621 @@
+{% extends "base.html" %}
+
+{% block title %}编辑器 - Hugo Blog 管理{% endblock %}
+{% block page_title %}文章编辑器{% endblock %}
+
+{% block extra_head %}
+<!-- Marked.js for Markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+<!-- Highlight.js for code syntax highlighting -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+<style>
+    /* 编辑器容器 */
+    .editor-container {
+        height: calc(100vh - 250px);
+        min-height: 500px;
+    }
+
+    /* Textarea 编辑器样式 */
+    #markdown-editor {
+        width: 100%;
+        height: 100%;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        resize: none;
+        outline: none;
+        background: #ffffff;
+    }
+
+    #markdown-editor:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* 预览区域样式 */
+    .preview-container {
+        height: 100%;
+        overflow-y: auto;
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        background: #ffffff;
+    }
+
+    /* Markdown 内容样式 */
+    .markdown-body {
+        font-size: 16px;
+        line-height: 1.6;
+        color: #24292e;
+    }
+
+    .markdown-body h1 {
+        font-size: 2em;
+        font-weight: 600;
+        margin-top: 24px;
+        margin-bottom: 16px;
+        padding-bottom: 0.3em;
+        border-bottom: 1px solid #eaecef;
+    }
+
+    .markdown-body h2 {
+        font-size: 1.5em;
+        font-weight: 600;
+        margin-top: 24px;
+        margin-bottom: 16px;
+        padding-bottom: 0.3em;
+        border-bottom: 1px solid #eaecef;
+    }
+
+    .markdown-body h3 {
+        font-size: 1.25em;
+        font-weight: 600;
+        margin-top: 24px;
+        margin-bottom: 16px;
+    }
+
+    .markdown-body p {
+        margin-top: 0;
+        margin-bottom: 16px;
+    }
+
+    .markdown-body ul, .markdown-body ol {
+        margin-top: 0;
+        margin-bottom: 16px;
+        padding-left: 2em;
+    }
+
+    .markdown-body li {
+        margin-top: 0.25em;
+    }
+
+    .markdown-body pre {
+        background-color: #f6f8fa;
+        border-radius: 6px;
+        padding: 16px;
+        overflow: auto;
+        margin-bottom: 16px;
+    }
+
+    .markdown-body code {
+        background-color: rgba(175,184,193,0.2);
+        padding: 0.2em 0.4em;
+        border-radius: 6px;
+        font-size: 85%;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    }
+
+    .markdown-body pre code {
+        background-color: transparent;
+        padding: 0;
+    }
+
+    .markdown-body blockquote {
+        margin: 0 0 16px 0;
+        padding: 0 1em;
+        color: #6a737d;
+        border-left: 0.25em solid #dfe2e5;
+    }
+
+    .markdown-body a {
+        color: #0366d6;
+        text-decoration: none;
+    }
+
+    .markdown-body a:hover {
+        text-decoration: underline;
+    }
+
+    .markdown-body table {
+        border-collapse: collapse;
+        margin-bottom: 16px;
+        width: 100%;
+    }
+
+    .markdown-body table th,
+    .markdown-body table td {
+        border: 1px solid #dfe2e5;
+        padding: 6px 13px;
+    }
+
+    .markdown-body table th {
+        font-weight: 600;
+        background-color: #f6f8fa;
+    }
+
+    .markdown-body img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .markdown-body hr {
+        height: 0.25em;
+        padding: 0;
+        margin: 24px 0;
+        background-color: #e1e4e8;
+        border: 0;
+    }
+
+    /* 工具栏按钮样式 */
+    .toolbar-btn {
+        padding: 0.5rem 1rem;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 14px;
+        color: #374151;
+    }
+
+    .toolbar-btn:hover {
+        background: #f3f4f6;
+        border-color: #d1d5db;
+    }
+
+    .toolbar-btn:active {
+        background: #e5e7eb;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="editor()" x-init="init()" x-cloak>
+    <!-- 工具栏 -->
+    <div class="bg-white rounded-lg shadow p-4 mb-4">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-4">
+                <div>
+                    <label class="text-sm font-medium text-gray-700">当前文件:</label>
+                    <span x-text="currentFile || '未选择文件'" class="ml-2 text-gray-600"></span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <!-- 图片管理按钮 -->
+                <button @click="showImageManager = !showImageManager"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    图片管理
+                </button>
+
+                <!-- 保存按钮 -->
+                <button @click="saveFile"
+                        :disabled="saving || !hasChanges"
+                        :class="{'opacity-50 cursor-not-allowed': saving || !hasChanges}"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+                    </svg>
+                    <span x-text="saving ? '保存中...' : (hasChanges ? '保存 (Ctrl+S)' : '已保存')"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 图片管理面板 -->
+        <div x-show="showImageManager" x-transition class="border-t pt-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-gray-900">图片管理</h3>
+                <label class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg cursor-pointer transition-colors">
+                    <input type="file" @change="uploadImage($event)" accept="image/*" class="hidden">
+                    上传图片
+                </label>
+            </div>
+
+            <!-- 图片列表 -->
+            <div class="grid grid-cols-4 gap-4">
+                <template x-for="image in images" :key="image.name">
+                    <div class="relative group">
+                        <img :src="'/content/' + currentFile.replace(/[^/]+$/, '') + image.url"
+                             :alt="image.name"
+                             class="w-full h-32 object-cover rounded border border-gray-200">
+                        <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center z-10">
+                            <button @click.prevent="copyImageUrl(image.url)"
+                                    class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded mr-2 cursor-pointer shadow-lg">
+                                复制链接
+                            </button>
+                        </div>
+                        <div class="mt-1 text-xs text-gray-600 truncate" x-text="image.name"></div>
+                    </div>
+                </template>
+            </div>
+
+            <p x-show="images.length === 0" class="text-gray-500 text-center py-8">
+                暂无图片，点击"上传图片"开始上传
+            </p>
+        </div>
+    </div>
+
+    <!-- Markdown 工具栏 -->
+    <div class="bg-white rounded-lg shadow p-3 mb-4">
+        <div class="flex flex-wrap gap-2">
+            <button @click="insertMarkdown('bold')" class="toolbar-btn" title="加粗 (Ctrl+B)">
+                <strong>B</strong>
+            </button>
+            <button @click="insertMarkdown('italic')" class="toolbar-btn" title="斜体 (Ctrl+I)">
+                <em>I</em>
+            </button>
+            <button @click="insertMarkdown('heading')" class="toolbar-btn" title="标题">
+                H
+            </button>
+            <span class="border-l border-gray-300 mx-1"></span>
+            <button @click="insertMarkdown('link')" class="toolbar-btn" title="链接">
+                🔗 链接
+            </button>
+            <button @click="insertMarkdown('image')" class="toolbar-btn" title="图片">
+                🖼️ 图片
+            </button>
+            <span class="border-l border-gray-300 mx-1"></span>
+            <button @click="insertMarkdown('ul')" class="toolbar-btn" title="无序列表">
+                • 列表
+            </button>
+            <button @click="insertMarkdown('ol')" class="toolbar-btn" title="有序列表">
+                1. 列表
+            </button>
+            <button @click="insertMarkdown('quote')" class="toolbar-btn" title="引用">
+                " 引用
+            </button>
+            <button @click="insertMarkdown('code')" class="toolbar-btn" title="代码">
+                &lt;/&gt; 代码
+            </button>
+            <button @click="insertMarkdown('table')" class="toolbar-btn" title="表格">
+                ⊞ 表格
+            </button>
+        </div>
+    </div>
+
+    <!-- 编辑器和预览 -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="grid grid-cols-2 gap-4 editor-container">
+            <!-- 编辑器 -->
+            <div>
+                <div class="text-sm font-medium text-gray-700 mb-2">编辑器</div>
+                <textarea
+                    id="markdown-editor"
+                    x-model="content"
+                    @input="updatePreview(); checkChanges()"
+                    placeholder="在此输入 Markdown 内容..."
+                ></textarea>
+            </div>
+
+            <!-- 预览 -->
+            <div>
+                <div class="text-sm font-medium text-gray-700 mb-2">预览</div>
+                <div class="preview-container">
+                    <div class="markdown-body" x-html="preview"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载状态 -->
+    <template x-if="loading">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <p class="text-gray-700">加载中...</p>
+            </div>
+        </div>
+    </template>
+</div>
+
+<script>
+function editor() {
+    return {
+        currentFile: '{% if file_path %}{{ file_path }}{% endif %}',
+        content: '',
+        originalContent: '',
+        preview: '',
+        hasChanges: false,
+        loading: false,
+        saving: false,
+        showImageManager: false,
+        images: [],
+
+        async init() {
+            // 配置 marked.js
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                highlight: function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        try {
+                            return hljs.highlight(code, { language: lang }).value;
+                        } catch (err) {}
+                    }
+                    return code;
+                }
+            });
+
+            // 如果有文件路径，加载文件
+            if (this.currentFile) {
+                await this.loadFile(this.currentFile);
+                await this.loadImages();
+            }
+
+            // 添加快捷键
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    if (this.hasChanges && !this.saving) {
+                        this.saveFile();
+                    }
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                    e.preventDefault();
+                    this.insertMarkdown('bold');
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                    e.preventDefault();
+                    this.insertMarkdown('italic');
+                }
+            });
+        },
+
+        checkChanges() {
+            this.hasChanges = this.content !== this.originalContent;
+        },
+
+        updatePreview() {
+            // 渲染 Markdown
+            let html = marked.parse(this.content || '');
+
+            // 修复图片路径
+            if (this.currentFile) {
+                const articleDir = this.currentFile.replace(/[^/]+$/, '');
+                html = html.replace(/<img\s+src="([^"]+)"/g, (match, src) => {
+                    if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) {
+                        src = `/content/${articleDir}${src}`;
+                    }
+                    return `<img src="${src}"`;
+                });
+            }
+
+            this.preview = html;
+        },
+
+        insertMarkdown(type) {
+            const textarea = document.getElementById('markdown-editor');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = this.content.substring(start, end);
+            let insertion = '';
+            let cursorOffset = 0;
+
+            switch(type) {
+                case 'bold':
+                    insertion = `**${selectedText || '粗体文本'}**`;
+                    cursorOffset = selectedText ? insertion.length : 2;
+                    break;
+                case 'italic':
+                    insertion = `*${selectedText || '斜体文本'}*`;
+                    cursorOffset = selectedText ? insertion.length : 1;
+                    break;
+                case 'heading':
+                    insertion = `## ${selectedText || '标题'}`;
+                    cursorOffset = selectedText ? insertion.length : 3;
+                    break;
+                case 'link':
+                    insertion = `[${selectedText || '链接文本'}](url)`;
+                    cursorOffset = selectedText ? insertion.length - 4 : insertion.length - 5;
+                    break;
+                case 'image':
+                    insertion = `![${selectedText || '图片描述'}](图片地址)`;
+                    cursorOffset = selectedText ? insertion.length - 6 : insertion.length - 11;
+                    break;
+                case 'ul':
+                    insertion = `- ${selectedText || '列表项'}`;
+                    cursorOffset = insertion.length;
+                    break;
+                case 'ol':
+                    insertion = `1. ${selectedText || '列表项'}`;
+                    cursorOffset = insertion.length;
+                    break;
+                case 'quote':
+                    insertion = `> ${selectedText || '引用内容'}`;
+                    cursorOffset = insertion.length;
+                    break;
+                case 'code':
+                    if (selectedText.includes('\n')) {
+                        insertion = `\`\`\`\n${selectedText || '代码'}\n\`\`\``;
+                        cursorOffset = selectedText ? insertion.length - 4 : 4;
+                    } else {
+                        insertion = `\`${selectedText || '代码'}\``;
+                        cursorOffset = selectedText ? insertion.length : 1;
+                    }
+                    break;
+                case 'table':
+                    insertion = `| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |`;
+                    cursorOffset = insertion.length;
+                    break;
+            }
+
+            this.content = this.content.substring(0, start) + insertion + this.content.substring(end);
+            this.$nextTick(() => {
+                textarea.focus();
+                textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
+                this.updatePreview();
+                this.checkChanges();
+            });
+        },
+
+        async loadFile() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/file/read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: this.currentFile })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.content = data.content;
+                    this.originalContent = data.content;
+                    this.updatePreview();
+                    this.hasChanges = false;
+                } else {
+                    utils.showNotification('加载文件失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load file:', error);
+                utils.showNotification('加载文件失败', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async saveFile() {
+            if (!this.currentFile) {
+                utils.showNotification('未选择文件', 'error');
+                return;
+            }
+
+            this.saving = true;
+            try {
+                const response = await fetch('/api/file/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: this.currentFile,
+                        content: this.content
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.originalContent = this.content;
+                    this.hasChanges = false;
+                    utils.showNotification('保存成功', 'success');
+                } else {
+                    utils.showNotification('保存失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to save file:', error);
+                utils.showNotification('保存失败', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async loadImages() {
+            if (!this.currentFile) return;
+
+            try {
+                const response = await fetch('/api/image/list', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ article_path: this.currentFile })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.images = data.images;
+                }
+            } catch (error) {
+                console.error('Failed to load images:', error);
+            }
+        },
+
+        async uploadImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('article_path', this.currentFile);
+
+            try {
+                const response = await fetch('/api/image/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    utils.showNotification('图片上传成功', 'success');
+                    await this.loadImages();
+                    event.target.value = '';
+                } else {
+                    utils.showNotification('上传失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to upload image:', error);
+                utils.showNotification('上传失败', 'error');
+            }
+        },
+
+        copyImageUrl(imageUrl) {
+            const markdownImage = `![](${imageUrl})`;
+
+            // 优先使用现代 clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(markdownImage).then(() => {
+                    utils.showNotification('已复制 Markdown 图片语法', 'success');
+                }).catch((err) => {
+                    console.error('Failed to copy:', err);
+                    // 降级到传统方法
+                    this.fallbackCopyToClipboard(markdownImage);
+                });
+            } else {
+                // 使用传统方法
+                this.fallbackCopyToClipboard(markdownImage);
+            }
+        },
+
+        fallbackCopyToClipboard(text) {
+            // 传统的复制方法（兼容性更好）
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    utils.showNotification('已复制 Markdown 图片语法', 'success');
+                } else {
+                    utils.showNotification('复制失败，请手动复制', 'error');
+                }
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                utils.showNotification('复制失败: ' + err.message, 'error');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        },
+
+    };
+}
+</script>
+{% endblock %}
