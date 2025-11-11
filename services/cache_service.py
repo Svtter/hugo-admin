@@ -7,9 +7,8 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-# 添加父目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from tasks import BlogPost, get_blog_posts
+# 导入内部模块
+from utils.blog_parser import BlogPost, get_blog_posts
 from models.database import Database
 
 

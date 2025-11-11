@@ -9,17 +9,25 @@ from pathlib import Path
 from flask import Flask, render_template, jsonify, request, send_from_directory
 from flask_socketio import SocketIO, emit
 
-# 添加父目录到路径以便导入 tasks.py
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from services.hugo_service import HugoServerManager
 from services.post_service import PostService
 
 # 初始化 Flask 应用
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['HUGO_ROOT'] = Path(__file__).parent.parent
-app.config['CONTENT_DIR'] = app.config['HUGO_ROOT'] / 'content'
+
+# 加载配置
+try:
+    from config_local import LocalConfig
+    app.config.from_object(LocalConfig)
+    print("✓ 已加载 config_local.py 配置")
+except ImportError:
+    from config import DevelopmentConfig
+    app.config.from_object(DevelopmentConfig)
+    print("✓ 已加载默认配置 (config.py)")
+
+# 向后兼容的配置
+app.config['HUGO_ROOT'] = app.config.get('HUGO_ROOT', Path(__file__).parent.parent)
+app.config['CONTENT_DIR'] = app.config.get('CONTENT_DIR', app.config['HUGO_ROOT'] / 'content')
 
 # 初始化 SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")
