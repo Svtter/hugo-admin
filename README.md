@@ -166,7 +166,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Markdown editor
 - [x] SQLite caching system
 - [x] Test suite with CI/CD
-- [ ] Image upload and management
+- [x] Image upload and management
 - [ ] Git operations interface
 - [ ] Markdown preview
 - [ ] Batch operations
@@ -341,7 +341,7 @@ hugo-admin/
 - [x] Markdown 编辑器
 - [x] SQLite 缓存系统
 - [x] 测试套件与 CI/CD
-- [ ] 图片上传和管理
+- [x] 图片上传和管理
 - [ ] Git 操作界面
 - [ ] Markdown 预览
 - [ ] 批量操作
