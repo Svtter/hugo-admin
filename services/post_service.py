@@ -9,6 +9,10 @@ import sys
 from pathlib import Path
 from datetime import datetime
 import yaml
+import uuid
+import fcntl
+import time
+import frontmatter
 
 # 导入内部模块
 from utils.blog_parser import BlogPost, get_blog_posts, filter_posts_by_search
@@ -35,6 +39,168 @@ class PostService:
             self.cache_service = CacheService(content_dir)
         else:
             self.cache_service = None
+
+    def publish_article(self, file_path):
+        """
+        发布文章 - 将 draft 状态从 true 改为 false
+
+        Args:
+            file_path: 文章文件路径（相对于 content 目录或绝对路径）
+
+        Returns:
+            tuple: (success, message, operation_id)
+        """
+        operation_id = str(uuid.uuid4())
+
+        try:
+            # 处理路径
+            if not Path(file_path).is_absolute():
+                file_path = self.content_dir / file_path
+
+            file_path = Path(file_path)
+
+            # 安全检查
+            if not self._is_safe_path(file_path):
+                return False, "访问被拒绝:文件不在允许的目录中", operation_id
+
+            # 检查文件是否存在
+            if not file_path.exists():
+                return False, f"文件不存在: {file_path}", operation_id
+
+            # 使用文件锁进行并发控制
+            def publish_operation(file_handle):
+                try:
+                    # 加载文章
+                    post = frontmatter.load(file_path)
+
+                    # 检查是否已经是发布状态
+                    if not post.get('draft', False):
+                        return False, "文章已经发布", False
+
+                    # 更新 draft 状态
+                    post.metadata['draft'] = False
+
+                    # 如果没有 publishDate，添加发布时间
+                    if 'publishDate' not in post.metadata:
+                        post.metadata['publishDate'] = datetime.now().isoformat()
+
+                    # 保存文件
+                    frontmatter.dump(post, file_handle.name)
+                    return True, "文章发布成功", True
+
+                except Exception as e:
+                    return False, f"发布操作失败: {str(e)}", False
+
+            # 执行带锁的发布操作
+            result, message, status_changed = self._safe_file_operation(str(file_path), publish_operation)
+
+            # 如果发布成功，更新缓存
+            if result and self.use_cache and self.cache_service:
+                self.cache_service.invalidate_post(str(file_path))
+
+            return result, message, operation_id
+
+        except Exception as e:
+            return False, f"发布操作失败: {str(e)}", operation_id
+
+    def bulk_publish_articles(self, file_paths):
+        """
+        批量发布文章
+
+        Args:
+            file_paths: 文章文件路径列表
+
+        Returns:
+            dict: 批量操作结果
+        """
+        operation_id = str(uuid.uuid4())
+        results = []
+        published_count = 0
+        failed_count = 0
+
+        for file_path in file_paths:
+            success, message, _ = self.publish_article(file_path)
+
+            result = {
+                'file_path': file_path,
+                'success': success,
+                'message': message if not success else None,
+                'published_at': datetime.now().isoformat() + 'Z' if success else None
+            }
+            results.append(result)
+
+            if success:
+                published_count += 1
+            else:
+                failed_count += 1
+
+        return {
+            'success': failed_count == 0,
+            'total_count': len(file_paths),
+            'published_count': published_count,
+            'failed_count': failed_count,
+            'operation_id': operation_id,
+            'results': results,
+            'duration_ms': 0  # 可以添加计时逻辑
+        }
+
+    def get_publish_status(self, file_path):
+        """
+        获取文章发布状态
+
+        Args:
+            file_path: 文章文件路径（相对于 content 目录或绝对路径）
+
+        Returns:
+            dict: 发布状态信息
+        """
+        try:
+            # 处理路径
+            if not Path(file_path).is_absolute():
+                file_path = self.content_dir / file_path
+
+            file_path = Path(file_path)
+
+            # 安全检查
+            if not self._is_safe_path(file_path):
+                return {
+                    'error': '访问被拒绝:文件不在允许的目录中',
+                    'file_path': str(file_path)
+                }
+
+            # 检查文件是否存在
+            if not file_path.exists():
+                return {
+                    'error': '文件不存在',
+                    'file_path': str(file_path)
+                }
+
+            # 加载文章 frontmatter
+            post = frontmatter.load(str(file_path))
+            is_draft = post.get('draft', True)  # 默认为 draft
+
+            # 检查是否可以发布
+            is_publishable = is_draft  # 简化逻辑，后续可以扩展
+            publish_errors = []
+
+            # 验证必要的 frontmatter 字段
+            if not post.get('title'):
+                publish_errors.append('缺少标题')
+
+            return {
+                'file_path': str(file_path),
+                'is_draft': is_draft,
+                'is_publishable': is_publishable,
+                'last_published': post.get('publishDate') if not is_draft else None,
+                'publish_errors': publish_errors,
+                'frontmatter': dict(post.metadata)  # 返回 frontmatter 的副本
+            }
+
+        except Exception as e:
+            return {
+                'error': f'状态检查失败: {str(e)}',
+                'file_path': str(file_path)
+            }
 
     def get_posts(self, query='', category='', tag='', page=1, per_page=20):
         """
@@ -300,6 +466,118 @@ class PostService:
 
         except Exception:
             return False
+
+    def _safe_file_operation(self, file_path, operation, timeout=10):
+        """
+        安全的文件操作，使用文件锁防止并发访问
+
+        Args:
+            file_path: 文件路径
+            operation: 操作函数，接收文件对象并返回结果
+            timeout: 超时时间（秒）
+
+        Returns:
+            tuple: (success, result)
+        """
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            try:
+                with open(file_path, 'r+', encoding='utf-8') as f:
+                    # 尝试获取文件锁
+                    try:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except (ImportError, AttributeError):
+                        # 在 Windows 或非 Unix 系统上跳过文件锁
+                        pass
+
+                    # 执行操作
+                    return operation(f)
+
+            except (IOError, OSError) as e:
+                if "Resource temporarily unavailable" in str(e) or "already locked" in str(e).lower():
+                    # 文件被锁定，等待后重试
+                    time.sleep(0.1)
+                    continue
+                else:
+                    # 其他 IO 错误
+                    return False, f"文件访问错误: {str(e)}"
+            except Exception as e:
+                return False, f"操作执行失败: {str(e)}"
+
+        # 超时
+        return False, f"无法在 {timeout} 秒内获取文件锁"
+
+    def _validate_frontmatter(self, post):
+        """
+        验证文章 frontmatter
+
+        Args:
+            post: frontmatter.Post 对象
+
+        Returns:
+            tuple: (is_valid, errors)
+        """
+        errors = []
+
+        # 检查必要字段
+        if not post.get('title'):
+            errors.append('缺少标题')
+
+        # 检查 draft 字段类型
+        draft_value = post.get('draft')
+        if draft_value is not None and not isinstance(draft_value, bool):
+            errors.append('draft 字段必须是布尔值')
+
+        # 检查日期格式
+        date_value = post.get('date')
+        if date_value:
+            try:
+                # 尝试解析日期
+                if isinstance(date_value, str):
+                    datetime.fromisoformat(date_value.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                errors.append('日期格式无效')
+
+        return len(errors) == 0, errors
+
+    def _validate_file_path(self, file_path):
+        """
+        验证文件路径的安全性
+
+        Args:
+            file_path: 文件路径
+
+        Returns:
+            tuple: (is_valid, error_message)
+        """
+        try:
+            path = Path(file_path)
+
+            # 检查路径是否尝试进行目录遍历攻击
+            if '..' in path.parts:
+                return False, "路径包含目录遍历字符"
+
+            # 转换为绝对路径
+            if not path.is_absolute():
+                path = (self.content_dir / path).resolve()
+            else:
+                path = path.resolve()
+
+            # 检查是否在允许的目录内
+            content_dir = self.content_dir.resolve()
+            if not str(path).startswith(str(content_dir)):
+                return False, "路径不在允许的内容目录内"
+
+            # 检查文件扩展名
+            allowed_extensions = {'.md', '.markdown'}
+            if path.suffix.lower() not in allowed_extensions:
+                return False, f"不支持的文件扩展名: {path.suffix}"
+
+            return True, None
+
+        except Exception as e:
+            return False, f"路径验证失败: {str(e)}"
 
     def save_image(self, article_path, file):
         """
