@@ -215,6 +215,25 @@
                     </svg>
                     <span x-text="saving ? '保存中...' : (hasChanges ? '保存 (Ctrl+S)' : '已保存')"></span>
                 </button>
+
+                <!-- 发布按钮 -->
+                <button id="publish-btn"
+                        @click="publishArticle"
+                        :disabled="publishing || !currentFile"
+                        :class="{
+                            'opacity-50 cursor-not-allowed': publishing || !currentFile,
+                            'bg-green-600 hover:bg-green-700': !isPublished,
+                            'bg-gray-400 hover:bg-gray-500': isPublished
+                        }"
+                        class="px-4 py-2 text-white rounded-lg transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <span x-text="publishing ? '发布中...' : (isPublished ? '已发布' : '发布')"></span>
+                </button>
+
+                <!-- 发布状态显示 -->
+                <div id="publish-status" class="text-sm"></div>
             </div>
         </div>
 
@@ -335,6 +354,8 @@ function editor() {
         hasChanges: false,
         loading: false,
         saving: false,
+        publishing: false,
+        isPublished: false,
         showImageManager: false,
         images: [],
 
@@ -480,6 +501,9 @@ function editor() {
                     this.originalContent = data.content;
                     this.updatePreview();
                     this.hasChanges = false;
+
+                    // 加载发布状态
+                    await this.checkPublishStatus();
                 } else {
                     utils.showNotification('加载文件失败: ' + data.message, 'error');
                 }
@@ -521,6 +545,83 @@ function editor() {
                 utils.showNotification('保存失败', 'error');
             } finally {
                 this.saving = false;
+            }
+        },
+
+        async publishArticle() {
+            if (!this.currentFile) {
+                utils.showNotification('未选择文件', 'error');
+                return;
+            }
+
+            // 确认发布操作
+            if (!confirm('确定要发布这篇文章吗？发布后将无法撤销草稿状态。')) {
+                return;
+            }
+
+            this.publishing = true;
+            try {
+                const response = await fetch('/api/article/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_path: this.currentFile
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.isPublished = true;
+                    utils.showNotification('文章发布成功！', 'success');
+
+                    // 更新发布状态显示
+                    this.updatePublishStatus('success', '文章已成功发布');
+                } else {
+                    utils.showNotification('发布失败: ' + data.error, 'error');
+                    this.updatePublishStatus('error', data.error);
+                }
+            } catch (error) {
+                console.error('Failed to publish article:', error);
+                utils.showNotification('发布失败', 'error');
+                this.updatePublishStatus('error', '发布请求失败');
+            } finally {
+                this.publishing = false;
+            }
+        },
+
+        async checkPublishStatus() {
+            if (!this.currentFile) return;
+
+            try {
+                const response = await fetch(`/api/article/status?file_path=${encodeURIComponent(this.currentFile)}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    this.isPublished = !data.status.is_draft;
+                }
+            } catch (error) {
+                console.error('Failed to check publish status:', error);
+            }
+        },
+
+        updatePublishStatus(type, message) {
+            const statusElement = document.getElementById('publish-status');
+            if (statusElement) {
+                if (type === 'success') {
+                    statusElement.className = 'text-sm text-green-600 mt-1';
+                    statusElement.textContent = message;
+                } else if (type === 'error') {
+                    statusElement.className = 'text-sm text-red-600 mt-1';
+                    statusElement.textContent = message;
+                } else {
+                    statusElement.className = 'text-sm text-gray-600 mt-1';
+                    statusElement.textContent = message;
+                }
+
+                // 3秒后清除状态消息
+                setTimeout(() => {
+                    statusElement.textContent = '';
+                }, 3000);
             }
         },
 

@@ -28,11 +28,11 @@ description: "Task list for Article Publishing feature implementation"
 
 **Purpose**: Project setup and preparation for article publishing feature
 
-- [ ] T001 Create backup of current working state before implementing feature
-- [ ] T002 Verify python-frontmatter dependency is available in requirements.txt
-- [ ] T003 Review existing PostService structure and identify extension points
-- [ ] T004 [P] Review existing API structure in app.py to understand endpoint patterns
-- [ ] T005 [P] Review existing template structure in templates/ to understand UI patterns
+- [x] T001 Create backup of current working state before implementing feature
+- [x] T002 Verify python-frontmatter dependency is available in requirements.txt
+- [x] T003 Review existing PostService structure and identify extension points
+- [x] T004 [P] Review existing API structure in app.py to understand endpoint patterns
+- [x] T005 [P] Review existing template structure in templates/ to understand UI patterns
 
 ---
 
@@ -42,12 +42,12 @@ description: "Task list for Article Publishing feature implementation"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Add publish_article method to PostService in services/post_service.py
-- [ ] T007 Add bulk_publish_articles method to PostService in services/post_service.py
-- [ ] T008 Add get_publish_status method to PostService in services/post_service.py
-- [ ] T009 Add file locking helper methods to PostService for concurrency handling
-- [ ] T010 Add frontmatter validation helpers to PostService in services/post_service.py
-- [ ] T011 Add file path validation helpers to PostService in services/post_service.py
+- [x] T006 Add publish_article method to PostService in services/post_service.py
+- [x] T007 Add bulk_publish_articles method to PostService in services/post_service.py
+- [x] T008 Add get_publish_status method to PostService in services/post_service.py
+- [x] T009 Add file locking helper methods to PostService for concurrency handling
+- [x] T010 Add frontmatter validation helpers to PostService in services/post_service.py
+- [x] T011 Add file path validation helpers to PostService in services/post_service.py
 
 **Checkpoint**: PostService foundation ready - user story implementation can now begin
 
@@ -63,22 +63,22 @@ description: "Task list for Article Publishing feature implementation"
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T012 [P] [US1] Create test_publish_api.py in tests/ with test_publish_article_success
-- [ ] T013 [P] [US1] Create test_publish_api.py with test_publish_already_published
-- [ ] T014 [P] [US1] Create test_publish_api.py with test_get_article_status
-- [ ] T015 [P] [US1] Create test_post_service.py with test_publish_article_service
-- [ ] T016 [P] [US1] Create test_publish_integration.py with test_full_publish_workflow
+- [x] T012 [P] [US1] Create test_publish_api.py in tests/ with test_publish_article_success
+- [x] T013 [P] [US1] Create test_publish_api.py with test_publish_already_published
+- [x] T014 [P] [US1] Create test_publish_api.py with test_get_article_status
+- [x] T015 [P] [US1] Create test_post_service.py with test_publish_article_service
+- [x] T016 [P] [US1] Create test_publish_integration.py with test_full_publish_workflow
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Add POST /api/article/publish endpoint in app.py (depends on T006, T009, T010, T011)
-- [ ] T018 [US1] Add GET /api/article/status endpoint in app.py (depends on T008)
-- [ ] T019 [US1] Add publish button to templates/editor.html near existing save buttons
-- [ ] T020 [US1] Add JavaScript confirmation dialog for publish action in templates/editor.html
-- [ ] T021 [US1] Add publish status loading logic in templates/editor.html to disable button for already published articles
-- [ ] T022 [US1] Add HTMX attributes to publish button for API integration in templates/editor.html
-- [ ] T023 [US1] Add publish status display element in templates/editor.html
-- [ ] T024 [US1] Add error handling and user feedback for publish operations in templates/editor.html
+- [x] T017 [US1] Add POST /api/article/publish endpoint in app.py (depends on T006, T009, T010, T011)
+- [x] T018 [US1] Add GET /api/article/status endpoint in app.py (depends on T008)
+- [x] T019 [US1] Add publish button to templates/editor.html near existing save buttons
+- [x] T020 [US1] Add JavaScript confirmation dialog for publish action in templates/editor.html
+- [x] T021 [US1] Add publish status loading logic in templates/editor.html to disable button for already published articles
+- [x] T022 [US1] Add HTMX attributes to publish button for API integration in templates/editor.html
+- [x] T023 [US1] Add publish status display element in templates/editor.html
+- [x] T024 [US1] Add error handling and user feedback for publish operations in templates/editor.html
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 

@@ -316,6 +316,76 @@ def list_images():
         }), 500
 
 
+# --- 文章发布 API ---
+
+@app.route('/api/article/publish', methods=['POST'])
+def publish_article():
+    """发布单个文章"""
+    data = request.get_json()
+
+    if not data or 'file_path' not in data:
+        return jsonify({
+            'success': False,
+            'error': '缺少 file_path 参数',
+            'error_code': 'MISSING_PARAMETER'
+        }), 400
+
+    file_path = data['file_path']
+    success, message, operation_id = post_service.publish_article(file_path)
+
+    if success:
+        return jsonify({
+            'success': True,
+            'message': message,
+            'operation_id': operation_id,
+            'article_path': file_path,
+            'draft_status_changed': True,
+            'published_at': datetime.now().isoformat() + 'Z'
+        })
+    else:
+        # 根据错误消息返回适当的 HTTP 状态码
+        if "不存在" in message:
+            status_code = 404
+        elif "已经发布" in message or "访问被拒绝" in message:
+            status_code = 409
+        else:
+            status_code = 400
+
+        return jsonify({
+            'success': False,
+            'error': message,
+            'error_code': 'PUBLISH_FAILED'
+        }), status_code
+
+
+@app.route('/api/article/status')
+def get_article_status():
+    """获取文章发布状态"""
+    file_path = request.args.get('file_path')
+
+    if not file_path:
+        return jsonify({
+            'success': False,
+            'error': '缺少 file_path 参数',
+            'error_code': 'MISSING_PARAMETER'
+        }), 400
+
+    status = post_service.get_publish_status(file_path)
+
+    if 'error' in status:
+        status_code = 404 if "不存在" in status['error'] else 400
+        return jsonify({
+            'success': False,
+            'error': status['error'],
+            'error_code': 'STATUS_CHECK_FAILED'
+        }), status_code
+
+    return jsonify({
+        'success': True,
+        'status': status
+    })
+
+
 # ============ WebSocket 事件 ============
 
 @socketio.on('connect')
