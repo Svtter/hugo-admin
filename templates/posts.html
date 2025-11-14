@@ -77,6 +77,31 @@
                     </div>
                 </div>
 
+                <!-- 批量操作工具栏 -->
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <!-- 选择控制 -->
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox"
+                               id="select-all"
+                               x-model="selectAll"
+                               @change="toggleSelectAll"
+                               class="w-4 h-4 border-gray-300 rounded text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                               :disabled="posts.length === 0">
+                        <label for="select-all" class="text-sm font-medium text-gray-700 cursor-pointer" x-text="`全选 (${selectedPosts.size} / ${posts.length})`"></label>
+                    </div>
+
+                    <!-- 批量发布按钮 -->
+                    <button @click="bulkPublish"
+                            :disabled="selectedPosts.size === 0 || bulkPublishing"
+                            :class="{'opacity-50 cursor-not-allowed': selectedPosts.size === 0 || bulkPublishing}"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        <span x-text="bulkPublishing ? '批量发布中...' : `批量发布 (${selectedPosts.size})`"></span>
+                    </button>
+                </div>
+
                 <!-- 文章卡片 -->
                 <div class="divide-y divide-gray-200">
                     <template x-if="posts.length === 0">
@@ -91,6 +116,15 @@
                     <template x-for="post in posts" :key="post.path">
                         <div class="p-6 hover:bg-gray-50 transition-colors">
                             <div class="flex items-start justify-between">
+                                <!-- 选择复选框 -->
+                                <div class="flex-shrink-0 mr-4 pt-1">
+                                    <input type="checkbox"
+                                           :id="`select-post-${post.path}`"
+                                           @change="togglePostSelection(post.path)"
+                                           :checked="selectedPosts.has(post.path)"
+                                           class="w-4 h-4 border-gray-300 rounded text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0">
+                                </div>
+
                                 <!-- 文章信息 -->
                                 <div class="flex-1">
                                     <a :href="'/editor/' + post.path" class="block">
@@ -106,6 +140,24 @@
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                             </svg>
                                             <span x-text="post.date"></span>
+                                        </div>
+
+                                        <!-- 发布状态 -->
+                                        <div class="flex items-center">
+                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                            </svg>
+                                            <template x-if="post.status">
+                                                <span x-text="post.status.is_draft ? '草稿' : '已发布'"
+                                                      :class="{
+                                                          'text-yellow-600': post.status.is_draft,
+                                                          'text-green-600 font-medium': !post.status.is_draft
+                                                      }"
+                                                ></span>
+                                            </template>
+                                            <template x-else>
+                                                <span class="text-gray-500">未知</span>
+                                            </template>
                                         </div>
 
                                         <!-- 分类 -->
@@ -201,7 +253,9 @@ function postsManager() {
             has_next: false,
             has_prev: false
         },
+        selectedPosts: new Set(),
         loading: false,
+        bulkPublishing: false,
 
         async init() {
             await this.loadCategories();
@@ -232,6 +286,9 @@ function postsManager() {
                     has_next: data.has_next,
                     has_prev: data.has_prev
                 };
+
+                // 加载发布状态
+                await this.loadPostsStatus();
             } catch (error) {
                 console.error('Failed to load posts:', error);
                 utils.showNotification('加载文章失败', 'error');
@@ -257,6 +314,119 @@ function postsManager() {
                 this.tags = data.tags;
             } catch (error) {
                 console.error('Failed to load tags:', error);
+            }
+        },
+
+        async loadPostsStatus() {
+            if (this.posts.length === 0) return;
+
+            try {
+                // 提取所有文章路径
+                const filePaths = this.posts.map(post => post.path);
+
+                const response = await fetch('/api/article/status/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_paths: filePaths })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // 将状态信息合并到 posts 数组中
+                    const statusMap = new Map(data.results.map(item => [item.file_path, item.status]));
+
+                    this.posts = this.posts.map(post => {
+                        return {
+                            ...post,
+                            status: statusMap.get(post.path) || null
+                        };
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load posts status:', error);
+            }
+        },
+
+        // 批量操作方法
+        get selectAll() {
+            return this.posts.length > 0 && this.selectedPosts.size === this.posts.length;
+        },
+
+        set selectAll(value) {
+            this.selectedPosts.clear();
+            if (value) {
+                this.posts.forEach(post => {
+                    this.selectedPosts.add(post.path);
+                });
+            }
+        },
+
+        toggleSelectAll() {
+            this.selectAll = !this.selectAll;
+        },
+
+        togglePostSelection(postPath) {
+            if (this.selectedPosts.has(postPath)) {
+                this.selectedPosts.delete(postPath);
+            } else {
+                this.selectedPosts.add(postPath);
+            }
+        },
+
+        async bulkPublish() {
+            if (this.selectedPosts.size === 0) {
+                utils.showNotification('未选择任何文章', 'error');
+                return;
+            }
+
+            if (!confirm(`确定要批量发布 ${this.selectedPosts.size} 篇文章吗？`)) {
+                return;
+            }
+
+            this.bulkPublishing = true;
+            try {
+                const filePaths = Array.from(this.selectedPosts);
+
+                const response = await fetch('/api/article/publish/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_paths: filePaths })
+                });
+
+                const data = await response.json();
+
+                if (data.success || (data.published_count > 0)) {
+                    let message = `成功发布 ${data.published_count} 篇文章`;
+                    if (data.failed_count > 0) {
+                        message += `，失败 ${data.failed_count} 篇`;
+                    }
+                    utils.showNotification(message, 'success');
+
+                    // 更新本地文章状态
+                    this.posts = this.posts.map(post => {
+                        if (filePaths.includes(post.path)) {
+                            return {
+                                ...post,
+                                status: {
+                                    ...post.status,
+                                    is_draft: false
+                                }
+                            };
+                        }
+                        return post;
+                    });
+
+                    // 清除选择
+                    this.selectedPosts.clear();
+                } else {
+                    utils.showNotification(`批量发布失败: ${data.error || '未知错误'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Bulk publish failed:', error);
+                utils.showNotification('批量发布失败', 'error');
+            } finally {
+                this.bulkPublishing = false;
             }
         },
 
