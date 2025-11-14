@@ -219,8 +219,9 @@ class Database:
         tag_count = {}
         for row in rows:
             tags = json.loads(row['tags'])
-            for tag in tags:
-                tag_count[tag] = tag_count.get(tag, 0) + 1
+            if tags is not None:
+                for tag in tags:
+                    tag_count[tag] = tag_count.get(tag, 0) + 1
 
         # 按数量排序
         tags = [{'name': tag, 'count': count} for tag, count in tag_count.items()]
@@ -246,8 +247,9 @@ class Database:
         category_count = {}
         for row in rows:
             categories = json.loads(row['categories'])
-            for category in categories:
-                category_count[category] = category_count.get(category, 0) + 1
+            if categories is not None:
+                for category in categories:
+                    category_count[category] = category_count.get(category, 0) + 1
 
         # 按数量排序
         categories = [{'name': cat, 'count': count} for cat, count in category_count.items()]

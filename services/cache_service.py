@@ -198,7 +198,12 @@ class CacheService:
         # 重新加载文章
         try:
             # 使用 BlogPost 类加载单个文件
-            post = BlogPost(file_path, str(self.content_dir))
+            post = BlogPost(file_path)
+            # 设置相对路径
+            try:
+                post.relative_path = Path(file_path).relative_to(self.content_dir)
+            except ValueError:
+                post.relative_path = Path(file_path)
             self._cache_post(post)
             print(f"更新缓存: {file_path}")
         except Exception as e:
