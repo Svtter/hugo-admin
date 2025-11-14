@@ -271,6 +271,11 @@ class PostService:
 
             # 返回相对路径
             rel_path = post_file.relative_to(self.content_dir)
+
+            # 更新缓存
+            if self.use_cache and self.cache_service:
+                self.cache_service.invalidate_post(str(post_file))
+
             return True, str(rel_path)
 
         except Exception as e:
